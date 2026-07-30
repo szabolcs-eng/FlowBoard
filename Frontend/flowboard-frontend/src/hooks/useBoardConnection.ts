@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
 import type { TaskItem } from "../types";
 
-const HUB_BASE_URL = import.meta.env.VITE_HUB_BASE_URL ?? "https://localhost:7000/hubs/board";
+const HUB_BASE_URL = import.meta.env.VITE_HUB_BASE_URL ?? "https://localhost:59839/hubs/board";
 
 interface UseBoardConnectionResult {
   isConnected: boolean;
