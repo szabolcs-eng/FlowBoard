@@ -8,8 +8,8 @@ public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
     public RegisterRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
-        RuleFor(x => x.Password).NotEmpty().MinimumLength(8)
-            .WithMessage("Password must be at least 8 characters.");
+        RuleFor(x => x.Password).NotEmpty().MinimumLength(6)
+            .WithMessage("Password must be at least 6 characters.");
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(50);
     }
 }
