@@ -32,6 +32,21 @@ export const tasksApi = {
       .post<TaskItem>(`/boards/${boardId}/tasks`, { title, description })
       .then((r) => r.data),
 
+  updateTask: (
+    boardId: number,
+    taskId: number,
+    title: string,
+    description: string | null,
+    assignedUserId: number | null
+  ) =>
+    apiClient
+      .put<TaskItem>(`/boards/${boardId}/tasks/${taskId}`, {
+        title,
+        description,
+        assignedUserId,
+      })
+      .then((r) => r.data),
+
   moveTask: (boardId: number, taskId: number, status: string, position: number) =>
     apiClient
       .patch<TaskItem>(`/boards/${boardId}/tasks/${taskId}/move`, { status, position })
