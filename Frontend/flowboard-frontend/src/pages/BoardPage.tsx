@@ -4,7 +4,11 @@ import { boardsApi, tasksApi } from "../api/endpoints";
 import { useBoardConnection, subscribeToTaskEvents } from "../hooks/useBoardConnection";
 import type { Board, TaskItem, BoardTaskStatus } from "../types";
 
-const COLUMNS: BoardTaskStatus[] = ["Todo", "InProgress", "Done"];
+const COLUMNS: { status: BoardTaskStatus; label: string }[] = [
+  { status: "Todo", label: "To do" },
+  { status: "InProgress", label: "In progress" },
+  { status: "Done", label: "Done" },
+];
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
@@ -17,8 +21,6 @@ export default function BoardPage() {
   const [memberError, setMemberError] = useState<string | null>(null);
   const { isConnected, connection } = useBoardConnection(id);
 
-  // Board detail (name + members) — previously never fetched, so the page just
-  // showed "Board #id" and there was no way to see or add members.
   useEffect(() => {
     boardsApi.getBoard(id).then(setBoard).catch(console.error);
   }, [id]);
@@ -62,73 +64,81 @@ export default function BoardPage() {
       setBoard(updatedBoard);
       setMemberEmail("");
     } catch {
-      // Backend returns 403 if you're not the board owner, or the add is a no-op
-      // if the email doesn't match a registered user — same message either way,
-      // since the API doesn't currently distinguish them in the response body.
-      setMemberError("Couldn't add that member — only the board owner can add members, and the email must belong to a registered user.");
+      setMemberError(
+        "Couldn't add that member — only the board owner can add members, and the email must belong to a registered user."
+      );
     }
   }
 
   if (!board) {
-    return <div className="p-6">Loading board...</div>;
+    return <p className="text-sm text-muted">Loading board…</p>;
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center gap-2 mb-1">
-        <h1 className="text-2xl font-bold">{board.name}</h1>
+    <div>
+      <div className="mb-1 flex items-center gap-2">
+        <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-ink">
+          {board.name}
+        </h1>
         <span
-          className={`text-xs px-2 py-1 rounded-full ${
-            isConnected ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            isConnected ? "bg-live-soft text-live" : "bg-paper text-muted"
           }`}
         >
-          {isConnected ? "Live" : "Connecting..."}
+          {isConnected && <span className="live-dot h-1.5 w-1.5 rounded-full bg-live" />}
+          {isConnected ? "Live" : "Connecting…"}
         </span>
       </div>
 
-      <div className="mb-4">
-        <div className="flex flex-wrap gap-2 mb-2">
+      <div className="mb-6">
+        <div className="mb-2 flex flex-wrap gap-2">
           {board.members.map((m) => (
             <span
               key={m.userId}
-              className="text-xs bg-gray-100 rounded-full px-2 py-1 text-gray-600"
+              className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted"
             >
-              {m.displayName} ({m.role})
+              {m.displayName} · {m.role}
             </span>
           ))}
         </div>
-        <form onSubmit={handleAddMember} className="flex gap-2 max-w-sm">
+        <form onSubmit={handleAddMember} className="flex max-w-sm gap-2">
           <input
             type="email"
             value={memberEmail}
             onChange={(e) => setMemberEmail(e.target.value)}
             placeholder="Add member by email"
-            className="border rounded px-2 py-1 text-sm flex-1"
+            className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-muted focus:border-brand"
           />
-          <button type="submit" className="text-sm bg-gray-700 text-white rounded px-3 py-1">
+          <button
+            type="submit"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-brand hover:text-brand"
+          >
             Add
           </button>
         </form>
-        {memberError && <p className="text-red-600 text-xs mt-1">{memberError}</p>}
+        {memberError && <p className="mt-1 text-xs text-danger">{memberError}</p>}
       </div>
 
-      <form onSubmit={handleCreateTask} className="flex gap-2 mb-6 max-w-md">
+      <form onSubmit={handleCreateTask} className="mb-6 flex max-w-md gap-2">
         <input
           value={newTaskTitle}
           onChange={(e) => setNewTaskTitle(e.target.value)}
           placeholder="New task title"
-          className="border rounded px-3 py-2 flex-1"
+          className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-brand"
         />
-        <button type="submit" className="bg-blue-600 text-white rounded px-4 py-2">
+        <button
+          type="submit"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
+        >
           Add task
         </button>
       </form>
 
-      <div className="grid grid-cols-3 gap-4">
-        {COLUMNS.map((status) => (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {COLUMNS.map(({ status, label }) => (
           <div
             key={status}
-            className="bg-gray-50 rounded-lg p-3 min-h-[300px]"
+            className="min-h-[300px] rounded-xl border border-border bg-surface/60 p-3"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               const taskId = Number(e.dataTransfer.getData("taskId"));
@@ -136,7 +146,9 @@ export default function BoardPage() {
               handleDrop(taskId, status, columnTasks.length);
             }}
           >
-            <h2 className="font-semibold text-sm text-gray-600 mb-2">{status}</h2>
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
+              {label}
+            </h2>
             {tasks
               .filter((t) => t.status === status)
               .sort((a, b) => a.position - b.position)
@@ -150,10 +162,6 @@ export default function BoardPage() {
   );
 }
 
-// Handles its own edit/delete state locally — the parent's `tasks` array stays
-// the single source of truth (updated via SignalR's TaskUpdated/TaskDeleted
-// events once the server confirms the change), this component just triggers
-// the API calls and toggles its own "am I in edit mode" flag.
 function TaskCard({
   boardId,
   task,
@@ -183,25 +191,25 @@ function TaskCard({
     return (
       <form
         onSubmit={handleSave}
-        className="bg-white rounded shadow-sm p-3 mb-2 flex flex-col gap-2"
+        className="mb-2 flex flex-col gap-2 rounded-lg border border-brand bg-surface p-3 shadow-sm"
       >
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
+          className="rounded-md border border-border px-2 py-1 text-sm focus:border-brand"
           required
         />
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Description"
-          className="border rounded px-2 py-1 text-sm"
+          className="rounded-md border border-border px-2 py-1 text-sm focus:border-brand"
           rows={2}
         />
         <select
           value={assignedUserId ?? ""}
           onChange={(e) => setAssignedUserId(e.target.value ? Number(e.target.value) : null)}
-          className="border rounded px-2 py-1 text-sm"
+          className="rounded-md border border-border px-2 py-1 text-sm focus:border-brand"
         >
           <option value="">Unassigned</option>
           {members.map((m) => (
@@ -211,13 +219,16 @@ function TaskCard({
           ))}
         </select>
         <div className="flex gap-2">
-          <button type="submit" className="text-xs bg-blue-600 text-white rounded px-2 py-1">
+          <button
+            type="submit"
+            className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+          >
             Save
           </button>
           <button
             type="button"
             onClick={() => setIsEditing(false)}
-            className="text-xs bg-gray-200 rounded px-2 py-1"
+            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-ink hover:bg-paper"
           >
             Cancel
           </button>
@@ -230,30 +241,32 @@ function TaskCard({
     <div
       draggable
       onDragStart={(e) => e.dataTransfer.setData("taskId", String(task.id))}
-      className="bg-white rounded shadow-sm p-3 mb-2 cursor-grab group"
+      className="group mb-2 cursor-grab rounded-lg border border-border bg-surface p-3 shadow-sm transition-shadow hover:shadow-md"
     >
-      <div className="flex justify-between items-start gap-2">
-        <p className="font-medium">{task.title}</p>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-ink">{task.title}</p>
+        <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             onClick={() => setIsEditing(true)}
-            className="text-xs text-gray-400 hover:text-gray-700"
+            className="text-xs text-muted hover:text-brand"
             aria-label="Edit task"
           >
             ✎
           </button>
           <button
             onClick={handleDelete}
-            className="text-xs text-gray-400 hover:text-red-600"
+            className="text-xs text-muted hover:text-danger"
             aria-label="Delete task"
           >
             ✕
           </button>
         </div>
       </div>
-      {task.description && <p className="text-xs text-gray-500 mt-1">{task.description}</p>}
+      {task.description && <p className="mt-1 text-xs text-muted">{task.description}</p>}
       {task.assignedUserName && (
-        <p className="text-xs text-gray-500 mt-1">{task.assignedUserName}</p>
+        <p className="mt-2 inline-block rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand">
+          {task.assignedUserName}
+        </p>
       )}
     </div>
   );

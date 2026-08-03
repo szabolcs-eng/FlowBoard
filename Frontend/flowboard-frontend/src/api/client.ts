@@ -1,6 +1,7 @@
 import axios from "axios";
+import { getToken, clearAuth } from "../lib/auth";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://localhost:59839/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://localhost:7000/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -9,7 +10,7 @@ export const apiClient = axios.create({
 // Automatically attach the JWT to every outgoing request, so individual
 // components/hooks never have to think about auth headers.
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("flowboard_token");
+  const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -22,7 +23,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("flowboard_token");
+      clearAuth();
       window.location.href = "/login";
     }
     return Promise.reject(error);

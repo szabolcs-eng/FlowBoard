@@ -1,1 +1,56 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap");
+
+@theme {
+  --color-ink: #161a23;
+  --color-paper: #f6f7fa;
+  --color-surface: #ffffff;
+  --color-border: #e3e6ec;
+  --color-muted: #6b7280;
+  --color-brand: #3c3ae0;
+  --color-brand-hover: #302ec0;
+  --color-brand-soft: #eeeefd;
+  --color-live: #17b87a;
+  --color-live-soft: #e3fbf0;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* The signature element: a continuously pulsing dot that stands in for
+   "this thing is live right now" everywhere it appears — the navbar
+   wordmark, and the board connection badge. */
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+.live-dot {
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
