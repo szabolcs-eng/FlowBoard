@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
-import type { TaskItem, Comment } from "../types";
+import type { TaskItem, Comment, PresenceViewer } from "../types";
 import { getToken } from "../lib/auth";
 
 const HUB_BASE_URL = import.meta.env.VITE_HUB_BASE_URL ?? "https://localhost:7000/hubs/board";
@@ -87,5 +87,26 @@ export function subscribeToCommentEvents(
   return () => {
     connection.off("CommentAdded", handlers.onAdded);
     connection.off("CommentDeleted", handlers.onDeleted);
+  };
+}
+
+export function subscribeToPresenceEvents(
+  connection: signalR.HubConnection,
+  handlers: {
+    // Sent once, right after JoinBoard resolves — the full list of who's already
+    // viewing. Everything after that arrives incrementally via onJoined/onLeft.
+    onSnapshot: (viewers: PresenceViewer[]) => void;
+    onJoined: (viewer: PresenceViewer) => void;
+    onLeft: (payload: { connectionId: string }) => void;
+  }
+) {
+  connection.on("PresenceSnapshot", handlers.onSnapshot);
+  connection.on("UserJoined", handlers.onJoined);
+  connection.on("UserLeft", handlers.onLeft);
+
+  return () => {
+    connection.off("PresenceSnapshot", handlers.onSnapshot);
+    connection.off("UserJoined", handlers.onJoined);
+    connection.off("UserLeft", handlers.onLeft);
   };
 }

@@ -46,3 +46,8 @@ export interface Comment {
   text: string;
   createdAt: string;
 }
+
+export interface PresenceViewer {
+  connectionId: string;
+  displayName: string;
+}

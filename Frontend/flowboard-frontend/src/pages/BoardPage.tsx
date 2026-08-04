@@ -5,9 +5,10 @@ import {
   useBoardConnection,
   subscribeToTaskEvents,
   subscribeToCommentEvents,
+  subscribeToPresenceEvents,
 } from "../hooks/useBoardConnection";
 import { getStoredUser } from "../lib/auth";
-import type { Board, TaskItem, BoardTaskStatus, Comment } from "../types";
+import type { Board, TaskItem, BoardTaskStatus, Comment, PresenceViewer } from "../types";
 
 const COLUMNS: { status: BoardTaskStatus; label: string }[] = [
   { status: "Todo", label: "To do" },
@@ -25,6 +26,7 @@ export default function BoardPage() {
   // is expanded) but live-updated for every task from the moment the board connects,
   // since the SignalR broadcast has no way to know which cards are currently open.
   const [commentsByTask, setCommentsByTask] = useState<Record<number, Comment[]>>({});
+  const [viewers, setViewers] = useState<PresenceViewer[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberError, setMemberError] = useState<string | null>(null);
@@ -67,9 +69,23 @@ export default function BoardPage() {
         ),
     });
 
+    // The snapshot on (re)join fully replaces our view of who's here — it's the
+    // source of truth for "at this moment," so join/left after that just patch it
+    // incrementally rather than accumulating forever.
+    const unsubscribePresence = subscribeToPresenceEvents(connection, {
+      onSnapshot: (snapshot) => setViewers(snapshot),
+      onJoined: (viewer) =>
+        setViewers((prev) =>
+          prev.some((v) => v.connectionId === viewer.connectionId) ? prev : [...prev, viewer]
+        ),
+      onLeft: ({ connectionId }) =>
+        setViewers((prev) => prev.filter((v) => v.connectionId !== connectionId)),
+    });
+
     return () => {
       unsubscribeTasks();
       unsubscribeComments();
+      unsubscribePresence();
     };
   }, [connection]);
 
@@ -136,6 +152,7 @@ export default function BoardPage() {
           {isConnected && <span className="live-dot h-1.5 w-1.5 rounded-full bg-live" />}
           {isConnected ? "Live" : "Connecting…"}
         </span>
+        {viewers.length > 0 && <PresenceStack viewers={viewers} />}
       </div>
 
       <div className="mb-6">
@@ -215,6 +232,46 @@ export default function BoardPage() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Overlapping initials-circles, capped at 4 visible with a "+N" overflow — the
+// familiar "who else is looking at this doc" pattern from Google Docs/Figma etc.
+// Note: presence is per-*connection*, not per-user, so the same person open in two
+// tabs shows as two circles — a deliberate simplification matching how the hub
+// tracks connections, not worth deduping for this scope.
+function PresenceStack({ viewers }: { viewers: PresenceViewer[] }) {
+  const visible = viewers.slice(0, 4);
+  const overflow = viewers.length - visible.length;
+
+  function initials(name: string) {
+    return name
+      .split(" ")
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  }
+
+  return (
+    <div
+      className="flex items-center -space-x-2"
+      title={viewers.map((v) => v.displayName).join(", ")}
+    >
+      {visible.map((v) => (
+        <span
+          key={v.connectionId}
+          className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-brand text-[10px] font-semibold text-white"
+        >
+          {initials(v.displayName)}
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-muted text-[10px] font-semibold text-white">
+          +{overflow}
+        </span>
+      )}
     </div>
   );
 }
