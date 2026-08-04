@@ -36,13 +36,12 @@ public class AuthService : IAuthService
             Email = request.Email,
             DisplayName = request.DisplayName,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            Role = GlobalRole.Member
         };
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        return new AuthResponse(user.Id, GenerateToken(user), user.Email, user.DisplayName, user.Role.ToString());
+        return new AuthResponse(user.Id, GenerateToken(user), user.Email, user.DisplayName);
     }
 
     public async Task<AuthResponse?> LoginAsync(LoginRequest request)
@@ -51,7 +50,7 @@ public class AuthService : IAuthService
         if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return null;
 
-        return new AuthResponse(user.Id, GenerateToken(user), user.Email, user.DisplayName, user.Role.ToString());
+        return new AuthResponse(user.Id, GenerateToken(user), user.Email, user.DisplayName);
     }
 
     private string GenerateToken(User user)
@@ -60,8 +59,7 @@ public class AuthService : IAuthService
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.DisplayName),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role.ToString())
+            new Claim(ClaimTypes.Email, user.Email)
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
