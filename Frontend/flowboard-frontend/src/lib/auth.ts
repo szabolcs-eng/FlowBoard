@@ -3,6 +3,7 @@
 // the Navbar's "who's logged in" display doesn't mean guessing the storage shape.
 
 export interface StoredUser {
+  id: number;
   email: string;
   displayName: string;
 }

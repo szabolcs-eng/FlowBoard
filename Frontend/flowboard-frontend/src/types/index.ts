@@ -5,6 +5,7 @@
 export type BoardTaskStatus = "Todo" | "InProgress" | "Done";
 
 export interface AuthResponse {
+  id: number;
   token: string;
   email: string;
   displayName: string;
@@ -35,5 +36,14 @@ export interface TaskItem {
   position: number;
   assignedUserId: number | null;
   assignedUserName: string | null;
+  createdAt: string;
+}
+
+export interface Comment {
+  id: number;
+  taskItemId: number;
+  userId: number;
+  userName: string;
+  text: string;
   createdAt: string;
 }

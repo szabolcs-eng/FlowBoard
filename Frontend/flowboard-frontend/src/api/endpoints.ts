@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { AuthResponse, Board, TaskItem } from "../types";
+import type { AuthResponse, Board, Comment, TaskItem } from "../types";
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -32,6 +32,9 @@ export const tasksApi = {
       .post<TaskItem>(`/boards/${boardId}/tasks`, { title, description })
       .then((r) => r.data),
 
+  // Was missing entirely — backend has had PUT /tasks/{taskId} since the start,
+  // but nothing on the frontend ever called it, so there was no way to edit a
+  // task's title/description/assignee once created.
   updateTask: (
     boardId: number,
     taskId: number,
@@ -54,4 +57,19 @@ export const tasksApi = {
 
   deleteTask: (boardId: number, taskId: number) =>
     apiClient.delete(`/boards/${boardId}/tasks/${taskId}`),
+};
+
+export const commentsApi = {
+  getComments: (boardId: number, taskId: number) =>
+    apiClient
+      .get<Comment[]>(`/boards/${boardId}/tasks/${taskId}/comments`)
+      .then((r) => r.data),
+
+  createComment: (boardId: number, taskId: number, text: string) =>
+    apiClient
+      .post<Comment>(`/boards/${boardId}/tasks/${taskId}/comments`, { text })
+      .then((r) => r.data),
+
+  deleteComment: (boardId: number, taskId: number, commentId: number) =>
+    apiClient.delete(`/boards/${boardId}/tasks/${taskId}/comments/${commentId}`),
 };

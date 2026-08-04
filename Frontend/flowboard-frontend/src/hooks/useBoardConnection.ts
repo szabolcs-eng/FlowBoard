@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
-import type { TaskItem } from "../types";
+import type { TaskItem, Comment } from "../types";
+import { getToken } from "../lib/auth";
 
-const HUB_BASE_URL = import.meta.env.VITE_HUB_BASE_URL ?? "https://localhost:59839/hubs/board";
+const HUB_BASE_URL = import.meta.env.VITE_HUB_BASE_URL ?? "https://localhost:7000/hubs/board";
 
 interface UseBoardConnectionResult {
   isConnected: boolean;
@@ -17,7 +18,7 @@ export function useBoardConnection(boardId: number): UseBoardConnectionResult {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("flowboard_token");
+    const token = getToken();
     if (!token) return;
 
     const connection = new signalR.HubConnectionBuilder()
@@ -70,5 +71,21 @@ export function subscribeToTaskEvents(
     connection.off("TaskUpdated", handlers.onUpdated);
     connection.off("TaskMoved", handlers.onMoved);
     connection.off("TaskDeleted", handlers.onDeleted);
+  };
+}
+
+export function subscribeToCommentEvents(
+  connection: signalR.HubConnection,
+  handlers: {
+    onAdded: (comment: Comment) => void;
+    onDeleted: (payload: { taskId: number; commentId: number }) => void;
+  }
+) {
+  connection.on("CommentAdded", handlers.onAdded);
+  connection.on("CommentDeleted", handlers.onDeleted);
+
+  return () => {
+    connection.off("CommentAdded", handlers.onAdded);
+    connection.off("CommentDeleted", handlers.onDeleted);
   };
 }

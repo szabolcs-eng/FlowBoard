@@ -8,8 +8,8 @@ public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
     public RegisterRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
-        RuleFor(x => x.Password).NotEmpty().MinimumLength(6)
-            .WithMessage("Password must be at least 6 characters.");
+        RuleFor(x => x.Password).NotEmpty().MinimumLength(8)
+            .WithMessage("Password must be at least 8 characters.");
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(50);
     }
 }
@@ -47,5 +47,13 @@ public class MoveTaskRequestValidator : AbstractValidator<MoveTaskRequest>
         RuleFor(x => x.Status).Must(s => new[] { "Todo", "InProgress", "Done" }.Contains(s))
             .WithMessage("Status must be one of: Todo, InProgress, Done.");
         RuleFor(x => x.Position).GreaterThanOrEqualTo(0);
+    }
+}
+
+public class CreateCommentRequestValidator : AbstractValidator<CreateCommentRequest>
+{
+    public CreateCommentRequestValidator()
+    {
+        RuleFor(x => x.Text).NotEmpty().MaximumLength(1000);
     }
 }

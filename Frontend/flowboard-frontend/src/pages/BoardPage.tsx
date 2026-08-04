@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { boardsApi, tasksApi } from "../api/endpoints";
-import { useBoardConnection, subscribeToTaskEvents } from "../hooks/useBoardConnection";
-import type { Board, TaskItem, BoardTaskStatus } from "../types";
+import { boardsApi, tasksApi, commentsApi } from "../api/endpoints";
+import {
+  useBoardConnection,
+  subscribeToTaskEvents,
+  subscribeToCommentEvents,
+} from "../hooks/useBoardConnection";
+import { getStoredUser } from "../lib/auth";
+import type { Board, TaskItem, BoardTaskStatus, Comment } from "../types";
 
 const COLUMNS: { status: BoardTaskStatus; label: string }[] = [
   { status: "Todo", label: "To do" },
@@ -16,6 +21,10 @@ export default function BoardPage() {
 
   const [board, setBoard] = useState<Board | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  // Comments are lazy-loaded per task (only fetched the first time a card's thread
+  // is expanded) but live-updated for every task from the moment the board connects,
+  // since the SignalR broadcast has no way to know which cards are currently open.
+  const [commentsByTask, setCommentsByTask] = useState<Record<number, Comment[]>>({});
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberError, setMemberError] = useState<string | null>(null);
@@ -32,13 +41,36 @@ export default function BoardPage() {
   useEffect(() => {
     if (!connection) return;
 
-    return subscribeToTaskEvents(connection, {
+    const unsubscribeTasks = subscribeToTaskEvents(connection, {
       onCreated: (task) =>
         setTasks((prev) => (prev.some((t) => t.id === task.id) ? prev : [...prev, task])),
       onUpdated: (task) => setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t))),
       onMoved: (task) => setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t))),
       onDeleted: (taskId) => setTasks((prev) => prev.filter((t) => t.id !== taskId)),
     });
+
+    // Only patch a task's comment list if we've already loaded it once (i.e. the key
+    // exists in the map) — otherwise leave it alone, since opening that task's thread
+    // later will fetch the full, already-up-to-date list anyway.
+    const unsubscribeComments = subscribeToCommentEvents(connection, {
+      onAdded: (comment) =>
+        setCommentsByTask((prev) =>
+          prev[comment.taskItemId]
+            ? { ...prev, [comment.taskItemId]: [...prev[comment.taskItemId], comment] }
+            : prev
+        ),
+      onDeleted: ({ taskId, commentId }) =>
+        setCommentsByTask((prev) =>
+          prev[taskId]
+            ? { ...prev, [taskId]: prev[taskId].filter((c) => c.id !== commentId) }
+            : prev
+        ),
+    });
+
+    return () => {
+      unsubscribeTasks();
+      unsubscribeComments();
+    };
   }, [connection]);
 
   async function handleCreateTask(e: React.FormEvent) {
@@ -68,6 +100,22 @@ export default function BoardPage() {
         "Couldn't add that member — only the board owner can add members, and the email must belong to a registered user."
       );
     }
+  }
+
+  async function loadComments(taskId: number) {
+    if (commentsByTask[taskId]) return; // already loaded
+    const result = await commentsApi.getComments(id, taskId);
+    setCommentsByTask((prev) => ({ ...prev, [taskId]: result }));
+  }
+
+  async function handleAddComment(taskId: number, text: string) {
+    // No optimistic add — same reasoning as task creation: the server echoes
+    // CommentAdded back to us over SignalR, which is what actually updates state.
+    await commentsApi.createComment(id, taskId, text);
+  }
+
+  async function handleDeleteComment(taskId: number, commentId: number) {
+    await commentsApi.deleteComment(id, taskId, commentId);
   }
 
   if (!board) {
@@ -153,7 +201,16 @@ export default function BoardPage() {
               .filter((t) => t.status === status)
               .sort((a, b) => a.position - b.position)
               .map((task) => (
-                <TaskCard key={task.id} boardId={id} task={task} members={board.members} />
+                <TaskCard
+                  key={task.id}
+                  boardId={id}
+                  task={task}
+                  members={board.members}
+                  comments={commentsByTask[task.id]}
+                  onExpandComments={() => loadComments(task.id)}
+                  onAddComment={(text) => handleAddComment(task.id, text)}
+                  onDeleteComment={(commentId) => handleDeleteComment(task.id, commentId)}
+                />
               ))}
           </div>
         ))}
@@ -166,15 +223,27 @@ function TaskCard({
   boardId,
   task,
   members,
+  comments,
+  onExpandComments,
+  onAddComment,
+  onDeleteComment,
 }: {
   boardId: number;
   task: TaskItem;
   members: { userId: number; displayName: string }[];
+  comments: Comment[] | undefined;
+  onExpandComments: () => void;
+  onAddComment: (text: string) => Promise<void>;
+  onDeleteComment: (commentId: number) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [assignedUserId, setAssignedUserId] = useState<number | null>(task.assignedUserId);
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const currentUser = getStoredUser();
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -185,6 +254,28 @@ function TaskCard({
   async function handleDelete() {
     if (!confirm(`Delete "${task.title}"?`)) return;
     await tasksApi.deleteTask(boardId, task.id);
+  }
+
+  function toggleComments() {
+    if (!showComments) onExpandComments();
+    setShowComments(!showComments);
+  }
+
+  async function handleSubmitComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    const text = newComment;
+    setNewComment("");
+    await onAddComment(text);
+  }
+
+  async function handleDeleteComment(commentId: number) {
+    setCommentError(null);
+    try {
+      await onDeleteComment(commentId);
+    } catch {
+      setCommentError("You can only delete your own comments.");
+    }
   }
 
   if (isEditing) {
@@ -238,35 +329,91 @@ function TaskCard({
   }
 
   return (
-    <div
-      draggable
-      onDragStart={(e) => e.dataTransfer.setData("taskId", String(task.id))}
-      className="group mb-2 cursor-grab rounded-lg border border-border bg-surface p-3 shadow-sm transition-shadow hover:shadow-md"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium text-ink">{task.title}</p>
-        <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-xs text-muted hover:text-brand"
-            aria-label="Edit task"
-          >
-            ✎
-          </button>
-          <button
-            onClick={handleDelete}
-            className="text-xs text-muted hover:text-danger"
-            aria-label="Delete task"
-          >
-            ✕
-          </button>
+    <div className="group mb-2 rounded-lg border border-border bg-surface p-3 shadow-sm transition-shadow hover:shadow-md">
+      <div
+        draggable
+        onDragStart={(e) => e.dataTransfer.setData("taskId", String(task.id))}
+        className="cursor-grab"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-ink">{task.title}</p>
+          <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="text-xs text-muted hover:text-brand"
+              aria-label="Edit task"
+            >
+              ✎
+            </button>
+            <button
+              onClick={handleDelete}
+              className="text-xs text-muted hover:text-danger"
+              aria-label="Delete task"
+            >
+              ✕
+            </button>
+          </div>
         </div>
+        {task.description && <p className="mt-1 text-xs text-muted">{task.description}</p>}
+        {task.assignedUserName && (
+          <p className="mt-2 inline-block rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand">
+            {task.assignedUserName}
+          </p>
+        )}
       </div>
-      {task.description && <p className="mt-1 text-xs text-muted">{task.description}</p>}
-      {task.assignedUserName && (
-        <p className="mt-2 inline-block rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand">
-          {task.assignedUserName}
-        </p>
+
+      <button
+        onClick={toggleComments}
+        className="mt-2 text-xs text-muted hover:text-brand"
+      >
+        💬 {comments ? comments.length : "…"} {comments?.length === 1 ? "comment" : "comments"}
+      </button>
+
+      {showComments && (
+        <div className="mt-2 border-t border-border pt-2">
+          {comments === undefined ? (
+            <p className="text-xs text-muted">Loading comments…</p>
+          ) : comments.length === 0 ? (
+            <p className="text-xs text-muted">No comments yet.</p>
+          ) : (
+            <ul className="mb-2 flex flex-col gap-1.5">
+              {comments.map((c) => (
+                <li key={c.id} className="text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <p>
+                      <span className="font-medium text-ink">{c.userName}</span>{" "}
+                      <span className="text-muted">{c.text}</span>
+                    </p>
+                    {currentUser?.id === c.userId && (
+                      <button
+                        onClick={() => handleDeleteComment(c.id)}
+                        className="shrink-0 text-muted hover:text-danger"
+                        aria-label="Delete comment"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {commentError && <p className="mb-1 text-xs text-danger">{commentError}</p>}
+          <form onSubmit={handleSubmitComment} className="flex gap-1">
+            <input
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Write a comment…"
+              className="flex-1 rounded-md border border-border px-2 py-1 text-xs focus:border-brand"
+            />
+            <button
+              type="submit"
+              className="rounded-md bg-brand px-2 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+            >
+              Post
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );

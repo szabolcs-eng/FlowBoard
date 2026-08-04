@@ -20,7 +20,7 @@ export default function LoginPage() {
         mode === "login"
           ? await authApi.login(email, password)
           : await authApi.register(email, password, displayName);
-      setAuth(result.token, { email: result.email, displayName: result.displayName });
+      setAuth(result.token, { id: result.id, email: result.email, displayName: result.displayName });
       navigate("/");
     } catch {
       setError(

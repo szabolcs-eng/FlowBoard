@@ -42,7 +42,7 @@ public class AuthService : IAuthService
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        return new AuthResponse(GenerateToken(user), user.Email, user.DisplayName, user.Role.ToString());
+        return new AuthResponse(user.Id, GenerateToken(user), user.Email, user.DisplayName, user.Role.ToString());
     }
 
     public async Task<AuthResponse?> LoginAsync(LoginRequest request)
@@ -51,7 +51,7 @@ public class AuthService : IAuthService
         if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return null;
 
-        return new AuthResponse(GenerateToken(user), user.Email, user.DisplayName, user.Role.ToString());
+        return new AuthResponse(user.Id, GenerateToken(user), user.Email, user.DisplayName, user.Role.ToString());
     }
 
     private string GenerateToken(User user)
