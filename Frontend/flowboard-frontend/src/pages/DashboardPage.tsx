@@ -34,7 +34,11 @@ export default function DashboardPage() {
       </p>
 
       <form onSubmit={handleCreate} className="mb-8 flex gap-2 max-w-md">
+        <label htmlFor="new-board-name" className="sr-only">
+          New board name
+        </label>
         <input
+          id="new-board-name"
           value={newBoardName}
           onChange={(e) => setNewBoardName(e.target.value)}
           placeholder="Name a new board"

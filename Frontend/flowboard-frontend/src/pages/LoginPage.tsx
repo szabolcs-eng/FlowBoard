@@ -50,31 +50,46 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             {mode === "register" && (
+              <div className="flex flex-col gap-1">
+                <label htmlFor="displayName" className="text-xs font-medium text-muted">
+                  Display name
+                </label>
+                <input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-brand"
+                  required
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="email" className="text-xs font-medium text-muted">
+                Email
+              </label>
               <input
-                type="text"
-                placeholder="Display name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-brand"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-brand"
                 required
               />
-            )}
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-brand"
-              required
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-brand"
-              required
-            />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="password" className="text-xs font-medium text-muted">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-brand"
+                required
+              />
+            </div>
             {error && (
               <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>
             )}

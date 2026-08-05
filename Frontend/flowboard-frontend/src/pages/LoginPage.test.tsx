@@ -11,8 +11,8 @@ describe("LoginPage", () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByPlaceholderText("Email")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Password")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /log in/i })).toBeInTheDocument();
   });
 });

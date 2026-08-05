@@ -253,7 +253,11 @@ export default function BoardPage() {
         {isOwner && (
           <>
             <form onSubmit={handleAddMember} className="flex max-w-sm gap-2">
+              <label htmlFor="member-email" className="sr-only">
+                Add member by email
+              </label>
               <input
+                id="member-email"
                 type="email"
                 value={memberEmail}
                 onChange={(e) => setMemberEmail(e.target.value)}
@@ -273,7 +277,11 @@ export default function BoardPage() {
       </div>
 
       <form onSubmit={handleCreateTask} className="mb-6 flex max-w-md gap-2">
+        <label htmlFor="new-task-title" className="sr-only">
+          New task title
+        </label>
         <input
+          id="new-task-title"
           value={newTaskTitle}
           onChange={(e) => setNewTaskTitle(e.target.value)}
           placeholder="New task title"
@@ -429,20 +437,32 @@ function TaskCard({
         onSubmit={handleSave}
         className="mb-2 flex flex-col gap-2 rounded-lg border border-brand bg-surface p-3 shadow-sm"
       >
+        <label htmlFor={`task-title-${task.id}`} className="sr-only">
+          Title
+        </label>
         <input
+          id={`task-title-${task.id}`}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           className="rounded-md border border-border px-2 py-1 text-sm focus:border-brand"
           required
         />
+        <label htmlFor={`task-description-${task.id}`} className="sr-only">
+          Description
+        </label>
         <textarea
+          id={`task-description-${task.id}`}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Description"
           className="rounded-md border border-border px-2 py-1 text-sm focus:border-brand"
           rows={2}
         />
+        <label htmlFor={`task-assignee-${task.id}`} className="sr-only">
+          Assign to
+        </label>
         <select
+          id={`task-assignee-${task.id}`}
           value={assignedUserId ?? ""}
           onChange={(e) => setAssignedUserId(e.target.value ? Number(e.target.value) : null)}
           className="rounded-md border border-border px-2 py-1 text-sm focus:border-brand"
@@ -545,7 +565,11 @@ function TaskCard({
           )}
           {commentError && <p className="mb-1 text-xs text-danger">{commentError}</p>}
           <form onSubmit={handleSubmitComment} className="flex gap-1">
+            <label htmlFor={`new-comment-${task.id}`} className="sr-only">
+              Write a comment
+            </label>
             <input
+              id={`new-comment-${task.id}`}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Write a comment…"
