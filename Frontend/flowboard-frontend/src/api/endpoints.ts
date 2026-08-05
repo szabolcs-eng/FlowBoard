@@ -21,6 +21,14 @@ export const boardsApi = {
 
   addMember: (boardId: number, email: string) =>
     apiClient.post<Board>(`/boards/${boardId}/members`, { email }).then((r) => r.data),
+
+  removeMember: (boardId: number, userId: number) =>
+    apiClient.delete<Board>(`/boards/${boardId}/members/${userId}`).then((r) => r.data),
+
+  leaveBoard: (boardId: number) =>
+    apiClient.post<Board>(`/boards/${boardId}/leave`).then((r) => r.data),
+
+  deleteBoard: (boardId: number) => apiClient.delete(`/boards/${boardId}`),
 };
 
 export const tasksApi = {

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { boardsApi, tasksApi, commentsApi } from "../api/endpoints";
 import {
   useBoardConnection,
   subscribeToTaskEvents,
   subscribeToCommentEvents,
   subscribeToPresenceEvents,
+  subscribeToBoardEvents,
 } from "../hooks/useBoardConnection";
 import { getStoredUser } from "../lib/auth";
 import type { Board, TaskItem, BoardTaskStatus, Comment, PresenceViewer } from "../types";
@@ -19,6 +20,8 @@ const COLUMNS: { status: BoardTaskStatus; label: string }[] = [
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const id = Number(boardId);
+  const navigate = useNavigate();
+  const currentUser = getStoredUser();
 
   const [board, setBoard] = useState<Board | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -82,12 +85,38 @@ export default function BoardPage() {
         setViewers((prev) => prev.filter((v) => v.connectionId !== connectionId)),
     });
 
+    // onUpdated fires for every member change (add/remove/leave) from ANYONE, including
+    // ourselves — the "did I just get removed" check lives in the effect below, which
+    // watches `board` after it's set here, rather than trying to detect it inline.
+    const unsubscribeBoard = subscribeToBoardEvents(connection, {
+      onUpdated: (updatedBoard) => setBoard(updatedBoard),
+      onDeleted: ({ boardId: deletedId }) => {
+        if (deletedId === id) {
+          alert("This board was deleted.");
+          navigate("/");
+        }
+      },
+    });
+
     return () => {
       unsubscribeTasks();
       unsubscribeComments();
       unsubscribePresence();
+      unsubscribeBoard();
     };
-  }, [connection]);
+  }, [connection, id, navigate]);
+
+  // Detects "I was removed from this board" (by the owner, or by leaving in another
+  // tab) purely by noticing my own id is missing from the live-updated member list —
+  // there's no separate "you were kicked" event, this is simpler and covers both cases.
+  useEffect(() => {
+    if (!board || !currentUser) return;
+    const stillAMember = board.members.some((m) => m.userId === currentUser.id);
+    if (!stillAMember) {
+      alert("You're no longer a member of this board.");
+      navigate("/");
+    }
+  }, [board, currentUser, navigate]);
 
   async function handleCreateTask(e: React.FormEvent) {
     e.preventDefault();
@@ -118,6 +147,33 @@ export default function BoardPage() {
     }
   }
 
+  async function handleRemoveMember(userId: number, displayName: string) {
+    if (!confirm(`Remove ${displayName} from this board?`)) return;
+    try {
+      const updatedBoard = await boardsApi.removeMember(id, userId);
+      setBoard(updatedBoard);
+    } catch {
+      setMemberError("Couldn't remove that member.");
+    }
+  }
+
+  async function handleLeaveBoard() {
+    if (!confirm("Leave this board? You'll need to be re-invited to get back in.")) return;
+    await boardsApi.leaveBoard(id);
+    navigate("/");
+  }
+
+  async function handleDeleteBoard() {
+    if (
+      !confirm(
+        `Delete "${board?.name}"? This permanently deletes all of its tasks and comments for every member.`
+      )
+    )
+      return;
+    await boardsApi.deleteBoard(id);
+    navigate("/");
+  }
+
   async function loadComments(taskId: number) {
     if (commentsByTask[taskId]) return; // already loaded
     const result = await commentsApi.getComments(id, taskId);
@@ -138,6 +194,8 @@ export default function BoardPage() {
     return <p className="text-sm text-muted">Loading board…</p>;
   }
 
+  const isOwner = currentUser?.id === board.ownerId;
+
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
@@ -153,6 +211,23 @@ export default function BoardPage() {
           {isConnected ? "Live" : "Connecting…"}
         </span>
         {viewers.length > 0 && <PresenceStack viewers={viewers} />}
+        <div className="ml-auto flex gap-2">
+          {isOwner ? (
+            <button
+              onClick={handleDeleteBoard}
+              className="text-xs font-medium text-muted hover:text-danger"
+            >
+              Delete board
+            </button>
+          ) : (
+            <button
+              onClick={handleLeaveBoard}
+              className="text-xs font-medium text-muted hover:text-danger"
+            >
+              Leave board
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-6">
@@ -160,28 +235,41 @@ export default function BoardPage() {
           {board.members.map((m) => (
             <span
               key={m.userId}
-              className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted"
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted"
             >
               {m.displayName} · {m.role}
+              {isOwner && m.userId !== board.ownerId && (
+                <button
+                  onClick={() => handleRemoveMember(m.userId, m.displayName)}
+                  className="ml-0.5 text-muted hover:text-danger"
+                  aria-label={`Remove ${m.displayName}`}
+                >
+                  ✕
+                </button>
+              )}
             </span>
           ))}
         </div>
-        <form onSubmit={handleAddMember} className="flex max-w-sm gap-2">
-          <input
-            type="email"
-            value={memberEmail}
-            onChange={(e) => setMemberEmail(e.target.value)}
-            placeholder="Add member by email"
-            className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-muted focus:border-brand"
-          />
-          <button
-            type="submit"
-            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-brand hover:text-brand"
-          >
-            Add
-          </button>
-        </form>
-        {memberError && <p className="mt-1 text-xs text-danger">{memberError}</p>}
+        {isOwner && (
+          <>
+            <form onSubmit={handleAddMember} className="flex max-w-sm gap-2">
+              <input
+                type="email"
+                value={memberEmail}
+                onChange={(e) => setMemberEmail(e.target.value)}
+                placeholder="Add member by email"
+                className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-muted focus:border-brand"
+              />
+              <button
+                type="submit"
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-brand hover:text-brand"
+              >
+                Add
+              </button>
+            </form>
+            {memberError && <p className="mt-1 text-xs text-danger">{memberError}</p>}
+          </>
+        )}
       </div>
 
       <form onSubmit={handleCreateTask} className="mb-6 flex max-w-md gap-2">

@@ -47,4 +47,28 @@ public class BoardsController : ControllerBase
         if (board is null) return Forbid();
         return Ok(board);
     }
+
+    [HttpDelete("{id}/members/{userId}")]
+    public async Task<ActionResult<BoardResponse>> RemoveMember(int id, int userId)
+    {
+        var board = await _boardService.RemoveMemberAsync(id, userId, User.GetUserId());
+        if (board is null) return Forbid();
+        return Ok(board);
+    }
+
+    [HttpPost("{id}/leave")]
+    public async Task<ActionResult<BoardResponse>> LeaveBoard(int id)
+    {
+        var board = await _boardService.LeaveBoardAsync(id, User.GetUserId());
+        if (board is null) return Forbid();
+        return Ok(board);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteBoard(int id)
+    {
+        var deleted = await _boardService.DeleteBoardAsync(id, User.GetUserId());
+        if (!deleted) return Forbid();
+        return NoContent();
+    }
 }

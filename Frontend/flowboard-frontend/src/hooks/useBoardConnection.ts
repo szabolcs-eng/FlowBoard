@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
-import type { TaskItem, Comment, PresenceViewer } from "../types";
+import type { TaskItem, Comment, PresenceViewer, Board } from "../types";
 import { getToken } from "../lib/auth";
 
 const HUB_BASE_URL = import.meta.env.VITE_HUB_BASE_URL ?? "https://localhost:7000/hubs/board";
@@ -108,5 +108,23 @@ export function subscribeToPresenceEvents(
     connection.off("PresenceSnapshot", handlers.onSnapshot);
     connection.off("UserJoined", handlers.onJoined);
     connection.off("UserLeft", handlers.onLeft);
+  };
+}
+
+export function subscribeToBoardEvents(
+  connection: signalR.HubConnection,
+  handlers: {
+    // Fires for add/remove member and leave — always the full board, not a diff,
+    // so the component can just replace its board state wholesale.
+    onUpdated: (board: Board) => void;
+    onDeleted: (payload: { boardId: number }) => void;
+  }
+) {
+  connection.on("BoardUpdated", handlers.onUpdated);
+  connection.on("BoardDeleted", handlers.onDeleted);
+
+  return () => {
+    connection.off("BoardUpdated", handlers.onUpdated);
+    connection.off("BoardDeleted", handlers.onDeleted);
   };
 }
